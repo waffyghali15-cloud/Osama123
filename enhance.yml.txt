@@ -1,0 +1,72 @@
+name: Forensic Image Enhancement
+
+on:
+  push:
+    paths:
+      - 'input/**'
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: 'اسم الصورة في مجلد input'
+        required: false
+        default: ''
+      case_number:
+        description: 'رقم القضية'
+        required: false
+        default: 'CASE-001'
+      scale:
+        description: 'معامل التكبير (2 أو 4)'
+        required: false
+        default: '4'
+
+jobs:
+  enhance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: forensic-${{ runner.os }}-pip-v2
+        restore-keys: |
+          forensic-${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install numpy opencv-python-headless Pillow
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install basicsr facexlib gfpgan
+        pip install realesrgan
+
+    - name: Run Forensic Enhancement
+      run: |
+        python forensic.py \
+          --input ./input \
+          --output ./output \
+          --case "${{ github.event.inputs.case_number || 'CASE-001' }}" \
+          --scale ${{ github.event.inputs.scale || '4' }}
+
+    - name: Upload Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: forensic-results-${{ github.run_number }}
+        path: output/
+        retention-days: 30
+
+    - name: Summary
+      run: |
+        echo "## نتائج المعالجة الجنائية" >> $GITHUB_STEP_SUMMARY
+        echo "- رقم القضية: ${{ github.event.inputs.case_number || 'CASE-001' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- معامل التكبير: ${{ github.event.inputs.scale || '4' }}x" >> $GITHUB_STEP_SUMMARY
+        echo "- الملفات المعالجة:" >> $GITHUB_STEP_SUMMARY
+        ls output/ >> $GITHUB_STEP_SUMMARY || echo "لا توجد ملفات" >> $GITHUB_STEP_SUMMARY
